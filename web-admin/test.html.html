@@ -1,0 +1,344 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AVCAN GIDA | TEST Fiyat ve Etiket Yönetimi</title>
+<style>
+:root{font-family:Inter,Arial,sans-serif;color:#172333;background:#f3f6fa}*{box-sizing:border-box}body{margin:0}.wrap{max-width:1050px;margin:36px auto;padding:0 18px}.head{display:flex;justify-content:space-between;align-items:center;gap:12px}.card{background:white;border:1px solid #dfe6ee;border-radius:16px;padding:22px;margin:18px 0;box-shadow:0 5px 20px #1a35500a}h1{font-size:25px;margin:0}h2{font-size:18px;margin:0 0 14px}.muted{color:#64748b;font-size:14px}label{display:block;font-weight:600;margin:12px 0 6px}input,select,button{font:inherit}input[type=email],input[type=password],input[type=file],select{width:100%;padding:12px;border:1px solid #cbd5e1;border-radius:9px;background:white}button{border:0;border-radius:9px;padding:12px 18px;background:#163d63;color:white;font-weight:700;cursor:pointer}button.secondary{background:#e8eef5;color:#17324d}button:disabled{opacity:.5;cursor:not-allowed}.grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}.branches{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:10px}.branches label{font-weight:500;margin:0;background:#f7f9fc;padding:10px;border-radius:8px}.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:18px}.hidden{display:none}.status{padding:12px;border-radius:9px;background:#eef4fb;margin-top:14px;white-space:pre-wrap}.error{background:#fff0f0;color:#a32222}.success{background:#eaf8ef;color:#176b37}table{border-collapse:collapse;width:100%;font-size:13px;margin-top:12px}td,th{padding:9px;border-bottom:1px solid #e5eaf0;text-align:left}th{background:#f7f9fc}.scroll{overflow:auto;max-height:320px}@media(max-width:650px){.grid{grid-template-columns:1fr}.branches{grid-template-columns:1fr 1fr}.wrap{margin:18px auto}}
+</style>
+</head>
+<body><main class="wrap">
+<header class="head"><div><h1>AVCAN GIDA · TEST</h1><div class="muted">Yalnızca test veritabanı koleksiyonları</div></div><button id="logout" class="secondary hidden">Çıkış</button></header>
+<section class="card" id="loginCard"><h2>Yönetici girişi</h2><p class="muted">Firebase Authentication yönetici hesabınızla giriş yapın.</p>
+<label>E-posta</label><input id="email" type="email" autocomplete="username">
+<label>Şifre</label><input id="password" type="password" autocomplete="current-password">
+<div class="actions"><button id="login">Giriş yap</button></div><div id="loginStatus" class="status hidden"></div></section>
+<section class="card hidden" id="appCard"><h2>TEST – Excel fiyat listesi aktarımı</h2><p class="status error">DİKKAT: Bu panel yalnızca testImports ve testPriceChanges koleksiyonlarına yazar. Android uygulamasındaki gerçek fiyat listesine aktarım yapmaz.</p>
+<p class="muted">.xlsx dosyası seçin. Beklenen başlıklar: Şube Kodu, Barkod, Ürün Adı, Eski Fiyat, Yeni Fiyat. Aktarım sunucu tarafında doğrulanır.</p>
+<label>Excel dosyası</label><input id="file" type="file" accept=".xlsx,.xls">
+<div class="grid"><div><label>Dağıtım yöntemi</label><select id="mode"><option value="excel">Excel şube koduna göre otomatik</option><option value="manual">Seçilen şubelere dağıt</option><option value="combined">Excel kodu + seçilen şubeler</option></select></div><div><label>Dosya sayfası</label><select id="sheet" disabled><option>Önce dosya seçin</option></select></div></div>
+<div id="branchWrap" class="hidden"><label>Ek/hedef şubeler</label><div class="branches" id="branches"></div></div>
+<div id="preview" class="hidden"><h2 style="margin-top:18px">Aktarım ön izlemesi</h2><div id="summary" class="muted"></div><div class="scroll"><table><thead><tr><th>Şube</th><th>Barkod</th><th>Ürün</th><th>Eski</th><th>Yeni</th></tr></thead><tbody id="rows"></tbody></table></div></div>
+<div class="actions"><button id="validate" class="secondary" disabled>Dosyayı kontrol et</button><button id="send" disabled>Firebase'e aktar</button></div><div id="status" class="status hidden"></div></section>
+</main>
+
+
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
+    import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
+    import {
+      getFirestore,
+      collection,
+      doc,
+      getDoc,
+      getDocs,
+      query,
+      where,
+      limit,
+      writeBatch,
+      serverTimestamp
+    } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
+    import * as XLSX from "https://cdn.jsdelivr.net/npm/xlsx@0.18.5/+esm";
+
+    // Firebase Console > Project settings > Your apps > Web app bölümünden alınan
+    // firebaseConfig değerlerini aşağıya girin. Android google-services.json bu alanın yerine geçmez.
+    const firebaseConfig = {
+      apiKey: "AIzaSyD9sDZ_ecy6YUZ1HTFn8KWiVZbKWuxBkX4",
+      authDomain: "avcan-gida-fiyat-takip.firebaseapp.com",
+      projectId: "avcan-gida-fiyat-takip",
+      storageBucket: "avcan-gida-fiyat-takip.firebasestorage.app",
+      messagingSenderId: "922992863093",
+      appId: "1:922992863093:web:96e480c447b8f0f88a953c",
+      measurementId: "G-67630YKYBR"
+    };
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+    const $=id=>document.getElementById(id);
+    const branchNames={"10":"Yaylapınar","20":"Ankara Yolu","40":"Aydınlık","41":"Fetih","95":"Aydınlık AVM","96":"Fetih AVM"};
+    let workbook=null, parsedRows=[];
+    $("branches").innerHTML=Object.entries(branchNames).map(([c,n])=>`<label><input type="checkbox" value="${c}"> ${c} · ${n}</label>`).join("");
+    function message(id,text,kind=""){const el=$(id);el.textContent=text;el.className="status "+kind;}
+    $("mode").addEventListener("change",()=>{$("branchWrap").classList.toggle("hidden",$("mode").value==="excel");});
+    $("file").addEventListener("change",async e=>{workbook=null;parsedRows=[];$("validate").disabled=true;$("send").disabled=true;$("preview").classList.add("hidden");const f=e.target.files[0];if(!f)return;
+     try{const data=await f.arrayBuffer();workbook=XLSX.read(data,{type:"array",cellDates:false});$("sheet").innerHTML=workbook.SheetNames.map(n=>`<option>${n}</option>`).join("");$("sheet").disabled=false;$("validate").disabled=false;message("status",`Dosya seçildi: ${f.name} · ${workbook.SheetNames.length} sayfa`);}
+     catch(err){message("status","Excel okunamadı: "+err.message,"error");}});
+    const norm = s => String(s ?? "")
+      .toLocaleLowerCase("tr-TR")
+      .replace(/[çğıöşü]/g, c => ({
+        "ç": "c",
+        "ğ": "g",
+        "ı": "i",
+        "ö": "o",
+        "ş": "s",
+        "ü": "u"
+      })[c])
+      .replace(/[^a-z0-9]/g, "");
+    function parsePrice(v){if(typeof v==="number")return v;let s=String(v??"").trim().replace(/[₺\s]/g,"");if(s.includes(",")&&s.includes("."))s=s.replace(/\./g,"").replace(",",".");else s=s.replace(",",".");return Number(s);}
+    $("validate").onclick=()=>{
+     try{const sheet=workbook.Sheets[$("sheet").value], raw=XLSX.utils.sheet_to_json(sheet,{defval:"",raw:true});if(!raw.length)throw Error("Excel sayfasında veri bulunamadı.");
+     const headers=Object.keys(raw[0]), find=(...names)=>headers.find(h=>names.includes(norm(h)));
+     const hBranch=find("subekodu","branchcode"),hBarcode=find("barkod","barcode"),hName=find("urunadi","productname","name"),hOld=find("eskifiyat","oldprice"),hNew=find("yenifiyat","newprice");
+     if(!hBarcode||!hName||!hOld||!hNew)throw Error("Zorunlu başlıklar bulunamadı. Barkod, Ürün Adı, Eski Fiyat, Yeni Fiyat sütunlarını kontrol edin.");
+     const mode=$("mode").value, selected=[...$("branches").querySelectorAll("input:checked")].map(x=>x.value);
+     if(mode!=="excel"&&!selected.length)throw Error("Dağıtım için en az bir şube seçin.");
+     parsedRows=raw.map((r,i)=>{const row={branchCode:String(r[hBranch]??"").trim(),barcode:String(r[hBarcode]??"").trim(),productName:String(r[hName]??"").trim(),oldPrice:parsePrice(r[hOld]),newPrice:parsePrice(r[hNew])};
+     if(!row.barcode||!row.productName||!Number.isFinite(row.oldPrice)||!Number.isFinite(row.newPrice))throw Error(`${i+2}. satırda barkod, ürün adı veya fiyat geçersiz.`);
+     if(mode!=="manual"&&!branchNames[row.branchCode])throw Error(`${i+2}. satırda geçersiz şube kodu: ${row.branchCode}`);
+     return row;});
+     $("rows").innerHTML=parsedRows.slice(0,100).map(r=>`<tr><td>${mode==="manual"?"Seçilen şubeler":branchNames[r.branchCode]}</td><td>${r.barcode}</td><td>${r.productName}</td><td>${r.oldPrice}</td><td>${r.newPrice}</td></tr>`).join("");
+     $("summary").textContent=`${parsedRows.length} satır kontrol edildi. ${parsedRows.length>100?"İlk 100 satır gösteriliyor.":""}`;
+     $("preview").classList.remove("hidden");$("send").disabled=false;message("status","Kontrol başarılı. Aktarım için hazır.","success");
+     }catch(err){parsedRows=[];$("send").disabled=true;message("status",err.message,"error");}
+    };
+
+$("send").onclick = async () => {
+  if (!parsedRows.length) return;
+
+  $("send").disabled = true;
+  message("status", "Aktarım başlatılıyor...");
+
+  let importId = null;
+
+  try {
+    const user = auth.currentUser;
+    if (!user) throw new Error("Önce yönetici girişi yapmalısınız.");
+
+    // Yönetici yetkisini tekrar kontrol et.
+    const profileSnap = await getDoc(doc(db, "users", user.uid));
+    if (!profileSnap.exists()) throw new Error("Kullanıcı profili bulunamadı.");
+
+    const profile = profileSnap.data();
+    if (
+      !["admin", "owner_admin"].includes(profile.role) ||
+      profile.approvalStatus !== "approved"
+    ) {
+      throw new Error("Onaylı yönetici yetkisi gerekli.");
+    }
+
+    const mode = $("mode").value;
+    const targetBranches = [
+      ...$("branches").querySelectorAll("input:checked")
+    ].map(x => x.value);
+
+    const seen = new Set();
+    const records = [];
+
+    for (const [index, row] of parsedRows.entries()) {
+      const targets = mode === "excel"
+        ? [row.branchCode]
+        : mode === "manual"
+          ? targetBranches
+          : [row.branchCode, ...targetBranches];
+
+      for (const branchCode of new Set(targets)) {
+        if (!branchNames[branchCode]) {
+          throw new Error(`${index + 2}. satırda geçersiz şube kodu.`);
+        }
+
+        const key = `${branchCode}:${row.barcode}`;
+        if (seen.has(key)) {
+          throw new Error(`Tekrarlanan barkod/şube: ${row.barcode} / ${branchNames[branchCode]}`);
+        }
+        seen.add(key);
+
+        records.push({
+          branchCode,
+          branchName: branchNames[branchCode],
+          barcode: row.barcode,
+          productName: row.productName,
+          oldPrice: row.oldPrice,
+          newPrice: row.newPrice
+        });
+      }
+    }
+
+    if (records.length > 4000) {
+      throw new Error("Toplam şube kaydı 4000'i aşamaz.");
+    }
+
+    // Aktarım geçmişi kaydı.
+    const importRef = doc(collection(db, "testImports"));
+    importId = importRef.id;
+
+    await writeBatch(db).set(importRef, {
+      uploadedAt: serverTimestamp(),
+      uploadedBy: user.uid,
+      uploadedByName: profile.fullName || user.email || "Yönetici",
+      fileName: $("file").files[0]?.name || "fiyat-listesi.xlsx",
+      sourceRowCount: parsedRows.length,
+      rowCount: records.length,
+      routingMode: mode,
+      targetBranches,
+      status: "processing"
+    }).commit();
+
+    // 450 kayıtlık gruplarla önce gizli kayıtları oluştur.
+    const createdRefs = [];
+
+    for (let i = 0; i < records.length; i += 450) {
+      const batch = writeBatch(db);
+      const part = records.slice(i, i + 450);
+
+      for (const record of part) {
+        const ref = doc(collection(db, "testPriceChanges"));
+        createdRefs.push(ref);
+
+        batch.set(ref, {
+          ...record,
+          importId,
+          createdAt: serverTimestamp(),
+          createdBy: user.uid,
+          status: "pending",
+          published: false
+        });
+      }
+
+      await batch.commit();
+      message("status", `Kayıtlar hazırlanıyor: ${Math.min(i + part.length, records.length)} / ${records.length}`);
+    }
+
+    // Bütün kayıtlar oluşturulduktan sonra yayımla.
+    for (let i = 0; i < createdRefs.length; i += 450) {
+      const batch = writeBatch(db);
+
+      createdRefs.slice(i, i + 450).forEach(ref => {
+        batch.update(ref, { published: true });
+      });
+
+      await batch.commit();
+      message("status", `Yayımlanıyor: ${Math.min(i + 450, createdRefs.length)} / ${createdRefs.length}`);
+    }
+
+    await writeBatch(db).update(importRef, {
+      status: "completed",
+      completedAt: serverTimestamp(),
+      createdRecordCount: records.length
+    }).commit();
+
+    message(
+      "status",
+      `Aktarım tamamlandı!\nExcel satırı: ${parsedRows.length}\nOluşturulan şube kaydı: ${records.length}\nAktarım kodu: ${importId}`,
+      "success"
+    );
+
+  } catch (err) {
+    // Başarısız aktarımın kayıtlarını temizlemeyi dene.
+    if (importId) {
+      try {
+        while (true) {
+          const q = query(
+            collection(db, "testPriceChanges"),
+            where("importId", "==", importId),
+            limit(450)
+          );
+
+          const snap = await getDocs(q);
+          if (snap.empty) break;
+
+          const batch = writeBatch(db);
+          snap.docs.forEach(item => batch.delete(item.ref));
+          await batch.commit();
+        }
+
+        await writeBatch(db).update(doc(db, "testImports", importId), {
+          status: "failed",
+          errorMessage: String(err.message || err).slice(0, 500),
+          failedAt: serverTimestamp()
+        }).commit();
+
+      } catch (cleanupError) {
+        console.error("Aktarım temizleme hatası:", cleanupError);
+      }
+    }
+
+    console.error(err);
+    message(
+      "status",
+      "Aktarım başarısız: " + (err.message || err),
+      "error"
+    );
+
+  } finally {
+    $("send").disabled = false;
+  }
+};
+onAuthStateChanged(auth, async user => {
+  $("loginCard").classList.toggle("hidden", !!user);
+  $("appCard").classList.add("hidden");
+  $("logout").classList.add("hidden");
+
+  if (!user) return;
+
+  try {
+    const snap = await getDoc(doc(db, "users", user.uid));
+
+    if (!snap.exists()) throw new Error("Kullanıcı profili bulunamadı.");
+
+    const profile = snap.data();
+
+    if (
+      !["admin", "owner_admin"].includes(profile.role) ||
+      profile.approvalStatus !== "approved"
+    ) {
+      throw new Error("Bu panel yalnızca onaylı yöneticilere açıktır.");
+    }
+
+    $("appCard").classList.remove("hidden");
+    $("logout").classList.remove("hidden");
+
+  } catch (err) {
+    message("loginStatus", err.message, "error");
+    await signOut(auth);
+  }
+});
+
+// Yönetici giriş butonu
+$("login").addEventListener("click", async () => {
+  const email = $("email").value.trim();
+  const password = $("password").value;
+
+  if (!email || !password) {
+    message("loginStatus", "E-posta ve şifrenizi girin.", "error");
+    return;
+  }
+
+  $("login").disabled = true;
+  message("loginStatus", "Giriş kontrol ediliyor...");
+
+  try {
+    await signInWithEmailAndPassword(auth, email, password);
+    // Başarılı girişte onAuthStateChanged kullanıcı profilini kontrol eder.
+  } catch (err) {
+    let errorText = "Giriş başarısız: " + (err.message || "Bilinmeyen hata");
+    if (err.code === "auth/invalid-credential") {
+      errorText = "E-posta veya şifre hatalı.";
+    } else if (err.code === "auth/too-many-requests") {
+      errorText = "Çok fazla deneme yapıldı. Bir süre sonra tekrar deneyin.";
+    } else if (err.code === "auth/unauthorized-domain") {
+      errorText = "Bu web adresi Firebase Authentication için yetkilendirilmemiş.";
+    } else if (err.code === "auth/network-request-failed") {
+      errorText = "İnternet bağlantısını kontrol edin ve tekrar deneyin.";
+    }
+    message("loginStatus", errorText, "error");
+  } finally {
+    $("login").disabled = false;
+  }
+});
+
+// Şifre alanında Enter tuşuyla giriş
+$("password").addEventListener("keydown", event => {
+  if (event.key === "Enter") $("login").click();
+});
+
+// Çıkış butonu
+$("logout").addEventListener("click", async () => {
+  try {
+    await signOut(auth);
+  } catch (err) {
+    console.error("Çıkış yapılamadı:", err);
+  }
+});
+</script>
+</body>
+</html>

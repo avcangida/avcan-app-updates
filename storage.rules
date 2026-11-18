@@ -1,0 +1,39 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /label-evidence/{branchCode}/{changeId}/{fileName} {
+      function signedIn() {
+        return request.auth != null;
+      }
+
+      function profileExists() {
+        return signedIn()
+          && firestore.exists(/databases/(default)/documents/users/$(request.auth.uid));
+      }
+
+      function profile() {
+        return firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data;
+      }
+
+      function approved() {
+        return profileExists() && profile().approvalStatus == "approved";
+      }
+
+      function isAdmin() {
+        return approved() && profile().role in ["admin", "owner_admin"];
+      }
+
+      allow read: if approved()
+        && (isAdmin() || profile().branchCode == branchCode);
+
+      // Photo evidence is optional in the current app version.
+      // If enabled later, only approved staff can upload to their own branch.
+      allow write: if approved()
+        && profile().role == "staff"
+        && profile().branchCode == branchCode
+        && request.resource != null
+        && request.resource.size < 8 * 1024 * 1024
+        && request.resource.contentType.matches('image/(jpeg|png|webp)');
+    }
+  }
+}

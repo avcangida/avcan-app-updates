@@ -1,0 +1,17 @@
+.gradle/
+.idea/
+.kotlin/
+**/build/
+**/node_modules/
+.firebase/
+local.properties
+.env
+.env.*
+*.jks
+*.keystore
+*.pem
+*.p12
+*.key
+**/serviceAccountKey.json
+**/service-account*.json
+**/*-adminsdk-*.json

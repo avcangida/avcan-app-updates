@@ -1,0 +1,695 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AVCAN GIDA | Fiyat ve Etiket Yönetimi</title>
+<style>
+:root{font-family:Inter,Arial,sans-serif;color:#172333;background:#f3f6fa}*{box-sizing:border-box}body{margin:0}.wrap{max-width:1050px;margin:36px auto;padding:0 18px}.head{display:flex;justify-content:space-between;align-items:center;gap:12px}.brand{display:flex;align-items:center;gap:16px;min-width:0}.brand-logo{width:118px;height:98px;object-fit:contain;flex:0 0 auto}.brand-copy{min-width:0}@media(max-width:520px){.brand{gap:9px}.brand-logo{width:82px;height:72px}}.card{background:white;border:1px solid #dfe6ee;border-radius:16px;padding:22px;margin:18px 0;box-shadow:0 5px 20px #1a35500a}h1{font-size:25px;margin:0}h2{font-size:18px;margin:0 0 14px}.muted{color:#64748b;font-size:14px}label{display:block;font-weight:600;margin:12px 0 6px}input,select,button{font:inherit}input:not([type=checkbox]),select{width:100%;min-width:0;padding:12px;border:1px solid #cbd5e1;border-radius:9px;background:#fff;color:#172333;min-height:44px}input:focus,select:focus{outline:2px solid #9bb8d3;outline-offset:1px}input[type=file]{padding:9px}input::placeholder{color:#94a3b8}button{min-height:44px}table{border-collapse:collapse;width:100%;min-width:620px;font-size:13px;margin-top:12px}th{white-space:nowrap}td{vertical-align:top}button{border:0;border-radius:9px;padding:12px 18px;background:#163d63;color:white;font-weight:700;cursor:pointer}button.secondary{background:#e8eef5;color:#17324d}button:disabled{opacity:.5;cursor:not-allowed}.grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}.branches{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:10px}.branches label{font-weight:500;margin:0;background:#f7f9fc;padding:10px;border-radius:8px}.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:18px}.hidden{display:none}.status{padding:12px;border-radius:9px;background:#eef4fb;margin-top:14px;white-space:pre-wrap}.error{background:#fff0f0;color:#a32222}.success{background:#eaf8ef;color:#176b37}table{border-collapse:collapse;width:100%;font-size:13px;margin-top:12px}td,th{padding:9px;border-bottom:1px solid #e5eaf0;text-align:left}th{background:#f7f9fc}.scroll{overflow:auto;max-height:320px}@media(max-width:900px){#dashboardCard .grid{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:650px){#dashboardCard .grid{grid-template-columns:1fr}.grid{grid-template-columns:1fr}.branches{grid-template-columns:1fr 1fr}.wrap{margin:12px auto;padding:0 10px}.card{padding:15px;border-radius:12px}.head{align-items:flex-start}.brand-logo{width:68px;height:62px}h1{font-size:20px}h2{font-size:17px}.actions>button{flex:1 1 100%}#dashboardCard .status{padding:10px}}
+@media print{body{background:#fff}.wrap{max-width:none;margin:0;padding:0}.head button,.actions,#loginCard,#appCard,#loadOlderPrices,#loadAllPrices,#resetArchive,#compareProduct,#logout{display:none!important}.card{box-shadow:none;border:0;margin:0;padding:8px}.scroll{overflow:visible;max-height:none}table{font-size:10px;page-break-inside:auto}tr{page-break-inside:avoid}h1{font-size:20px}#dashboardCard{display:block!important}.status{break-inside:avoid}}
+</style>
+</head>
+<body><main class="wrap">
+<header class="head"><div class="brand"><img class="brand-logo" src="assets/mustafa-avcan-group.png" alt="Mustafa Avcan Group"><div class="brand-copy"><h1>Fiyat ve Etiket Takip</h1><div class="muted">Mustafa Avcan Group · Yönetici Paneli</div></div></div><button id="logout" class="secondary hidden">Çıkış</button></header>
+<section class="card" id="loginCard"><h2>Yönetici girişi</h2><p class="muted">Firebase Authentication yönetici hesabınızla giriş yapın.</p>
+<label>E-posta</label><input id="email" type="email" autocomplete="username">
+<label>Şifre</label><input id="password" type="password" autocomplete="current-password">
+<div class="actions"><button id="login">Giriş yap</button></div><div id="loginStatus" class="status hidden"></div></section>
+<section class="card hidden" id="appCard"><h2>Excel fiyat listesi aktarımı</h2>
+<p class="muted">Orijinal Excel dosyanızı seçin. Yalnızca BARKOD1, STOK ADI, SATIŞ FİYAT 1, SATIŞ FİYAT 2, AYD.AVMF, FET.AVMF ve DÜZELTME TARİHİ sütunları okunur. Excel dosyanız değiştirilmez.</p>
+<label>Excel dosyası</label><input id="file" type="file" accept=".xlsx,.xls">
+<div class="grid">
+  <div><label>Aktarım açıklaması (isteğe bağlı)</label><input id="importNote" type="text" maxlength="160" placeholder="Örn. Kasım fiyat güncellemesi"></div>
+  <div><label>Excel sayfası</label><select id="sheet" disabled><option>Önce dosya seçin</option></select></div>
+</div>
+<p class="muted">Her ürünün düzeltme tarihi Excel'deki kendi satırından alınır. SATIŞ FİYAT 1, 20-40-41 şubelerine ayrı kayıt olarak aktarılır.</p>
+<div id="preview" class="hidden"><h2 style="margin-top:18px">Aktarım ön izlemesi</h2><div id="summary" class="muted"></div><div class="scroll"><table><thead><tr><th>Şube</th><th>Barkod</th><th>Ürün</th><th>Yeni fiyat</th><th>Düzeltme tarihi</th></tr></thead><tbody id="rows"></tbody></table></div></div>
+<div class="actions"><button id="validate" class="secondary" disabled>Dosyayı kontrol et</button><button id="send" disabled>Firebase'e aktar</button></div><div id="status" class="status hidden"></div></section>
+
+<section class="card hidden" id="dashboardCard">
+  <div class="head">
+    <div><h2>Yönetim özeti</h2><div class="muted">Fiyat aktarımı ve şube işlem özeti.</div></div>
+    <button id="refreshDashboard" class="secondary">Yenile</button>
+  </div>
+  <div class="grid" style="grid-template-columns:repeat(3,minmax(0,1fr));margin-top:16px">
+    <div class="status"><div class="muted">Yüklenen kayıt</div><strong id="kpiTotal">—</strong></div>
+    <div class="status"><div class="muted">Teslim alınan</div><strong id="kpiDelivered">—</strong></div>
+    <div class="status"><div class="muted">Etiketi tamamlanan</div><strong id="kpiChanged">—</strong></div>
+    <div class="status"><div class="muted">Bekleyen</div><strong id="kpiPending">—</strong></div>
+    <div class="status"><div class="muted">Okunan</div><strong id="kpiRead">—</strong></div>
+    <div class="status"><div class="muted">Tamamlanma oranı</div><strong id="kpiRate">—</strong></div>
+  </div>
+  <div class="grid" style="margin-top:16px">
+    <div><label>Şube filtresi</label><select id="dashboardBranch"><option value="">Tüm şubeler</option></select></div>
+    <div><label>İşlem durumu</label><select id="dashboardStatus"><option value="">Tüm durumlar</option><option value="pending">Bekliyor</option><option value="read">Okundu</option><option value="delivered">Teslim alındı</option><option value="changed">Tamamlandı</option></select></div>
+  </div>
+  <div class="grid" style="margin-top:16px">
+    <div><label>Rapor başlangıç tarihi</label><input id="reportFrom" type="date"></div>
+    <div><label>Rapor bitiş tarihi</label><input id="reportTo" type="date"></div>
+  </div>
+  <div class="muted">Filtreler şube, durum ve tarih aralığına göre uygulanır.</div>
+  <div class="actions"><button id="exportManagementXlsx" class="secondary">Excel raporu indir</button><button id="printManagementReport" class="secondary">PDF / Yazdır</button></div>
+  <h2 style="margin-top:20px">Şube performansı</h2>
+  <div class="scroll"><table><thead><tr><th>Şube</th><th>Toplam</th><th>Okundu</th><th>Teslim alındı</th><th>Tamamlandı</th><th>Bekleyen</th><th>Tamamlanma %</th></tr></thead><tbody id="branchStats"></tbody></table></div>
+  <h3 style="margin-top:18px">Şube bazlı eksik işlem takibi</h3>
+  <div class="muted">Her kayıt yalnızca bulunduğu son aşamaya göre sayılır; sayılar seçili tarih ve şube filtrelerine uyar.</div>
+  <div class="scroll"><table><thead><tr><th>Şube</th><th>Okunmadı</th><th>Okundu, teslim alınmadı</th><th>Teslim alındı, etiket bekliyor</th><th>Toplam eksik</th></tr></thead><tbody id="branchPendingStats"></tbody></table></div>
+  <h2 style="margin-top:20px">Tarihsel fiyat arşivi</h2>
+  <div class="muted">Eski fiyat kayıtları yeni yüklemelerle silinmez veya üzerine yazılmaz. Arşiv 500 kayıtlık sayfalarla geriye doğru açılır. KPI ve performans sayımları belleğe yüklenen kayıtları kapsar.</div>
+  <div class="grid">
+    <div><label>Ürün / barkod ara</label><input id="archiveSearch" type="search" placeholder="Ürün adı veya barkod"></div>
+    <div><label>Arşiv şubesi</label><select id="archiveBranch"><option value="">Tüm şubeler</option></select></div>
+    <div><label>Başlangıç tarihi</label><input id="archiveFrom" type="date"></div>
+    <div><label>Bitiş tarihi</label><input id="archiveTo" type="date"></div>
+  </div>
+  <div class="actions"><button id="loadOlderPrices" class="secondary">Daha eski kayıtları yükle</button><button id="loadAllPrices" class="secondary">Tüm arşivi rapor için yükle</button><button id="resetArchive" class="secondary">Filtreleri temizle</button></div>
+  <div class="scroll"><table><thead><tr><th>Düzeltme tarihi</th><th>Şube</th><th>Ürün</th><th>Barkod</th><th>Yeni fiyat</th><th>Durum</th></tr></thead><tbody id="priceRows"></tbody></table></div>
+  <h2 style="margin-top:20px">Personel performansı</h2>
+  <div class="muted">Personel bazında okuma, teslim alma ve etiket tamamlama sayıları. Sayımlar belleğe yüklenmiş kayıtlar üzerinden hesaplanır; eksiksiz rapor için “Tüm arşivi rapor için yükle” seçeneğini kullanın.</div>
+  <div class="scroll"><table><thead><tr><th>Personel</th><th>Şube</th><th>Okunan</th><th>Teslim alınan</th><th>Tamamlanan</th><th>Toplam işlem</th><th>Son işlem</th></tr></thead><tbody id="staffStats"></tbody></table></div>
+  <div id="staffDetailPanel" class="status hidden" style="margin-top:14px"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><strong id="staffDetailTitle">Personel işlem detayları</strong><div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" id="exportStaffDetail" class="secondary">Excel/CSV indir</button><button type="button" id="closeStaffDetail" class="secondary">Kapat</button></div></div><div class="muted" id="staffDetailSummary" style="margin-top:6px"></div><div class="grid" style="margin-top:10px"><div><label>İşlem türü</label><select id="staffDetailAction"><option value="">Tüm işlemler</option><option value="Okundu">Okundu</option><option value="Teslim alındı">Teslim alındı</option><option value="Etiket tamamlandı">Etiket tamamlandı</option></select></div><div><label>Ürün / barkod ara</label><input id="staffDetailSearch" type="search" placeholder="Ürün adı veya barkod"></div></div><div class="muted" id="staffDetailCount" style="margin-top:8px"></div><div class="scroll" style="max-height:360px"><table><thead><tr><th>İşlem tarihi</th><th>İşlem</th><th>Ürün</th><th>Barkod</th><th>Şube</th><th>Fiyat</th></tr></thead><tbody id="staffDetailRows"></tbody></table></div></div>
+  <h2 style="margin-top:20px">Excel aktarım geçmişi</h2>
+  <div class="scroll"><table><thead><tr><th>Tarih</th><th>Dosya</th><th>Satır</th><th>Şube kaydı</th><th>Yükleyen</th><th>Durum</th></tr></thead><tbody id="importRows"></tbody></table></div>
+  <div id="dashboardStatusMessage" class="status hidden"></div>
+</section>
+
+</main>
+
+
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
+    import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
+    import {
+      getFirestore,
+      collection,
+      doc,
+      getDoc,
+      getDocs,
+      query,
+      where,
+      limit,
+      orderBy,
+      startAfter,
+      writeBatch,
+      serverTimestamp
+    } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
+    import * as XLSX from "https://cdn.jsdelivr.net/npm/xlsx@0.18.5/+esm";
+
+    // Firebase Console > Project settings > Your apps > Web app bölümünden alınan
+    // firebaseConfig değerlerini aşağıya girin. Android google-services.json bu alanın yerine geçmez.
+    const firebaseConfig = {
+      apiKey: "AIzaSyD9sDZ_ecy6YUZ1HTFn8KWiVZbKWuxBkX4",
+      authDomain: "avcan-gida-fiyat-takip.firebaseapp.com",
+      projectId: "avcan-gida-fiyat-takip",
+      storageBucket: "avcan-gida-fiyat-takip.firebasestorage.app",
+      messagingSenderId: "922992863093",
+      appId: "1:922992863093:web:96e480c447b8f0f88a953c",
+      measurementId: "G-67630YKYBR"
+    };
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+    const $=id=>document.getElementById(id);
+    const branchNames={"10":"Yaylapınar","20":"Ankara Yolu","40":"Aydınlık","41":"Fetih","95":"Aydınlık AVM","96":"Fetih AVM"};
+    let workbook=null, parsedRows=[];
+    function message(id,text,kind=""){const el=$(id);el.textContent=text;el.className="status "+kind;}
+
+    let dashboardPrices = [], dashboardImports = [], dashboardUsers = [];
+    let currentStaffEvents = [], currentStaffName = "";
+    let priceArchiveCursor = null, priceArchiveHasMore = true, priceArchiveLoading = false;
+    const esc = value => String(value ?? "").replace(/[&<>"']/g, ch => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch]));
+    const money = value => {
+      const n = Number(value);
+      return Number.isFinite(n) ? n.toLocaleString("tr-TR",{minimumFractionDigits:2,maximumFractionDigits:2})+" ₺" : "—";
+    };
+    const dateLabel = value => {
+      if (!value) return "—";
+      const d = value.toDate ? value.toDate() : new Date(value);
+      return Number.isNaN(d.getTime()) ? "—" : d.toLocaleString("tr-TR");
+    };
+    const stateOf = r => r.changed ? "Tamamlandı" : r.delivered ? "Teslim alındı" : r.read ? "Okundu" : "Bekliyor";
+    const effectiveDay = r => {
+      const v = r.effectiveDate || r.batchDate || r.createdAt;
+      if (!v) return null;
+      if (v?.toDate) return v.toDate();
+      const s = String(v).trim();
+      let m = s.match(/^(\\d{4})-(\\d{2})-(\\d{2})/);
+      if (m) return new Date(Number(m[1]),Number(m[2])-1,Number(m[3]));
+      m = s.match(/^(\\d{2})\\.(\\d{2})\\.(\\d{4})/);
+      if (m) return new Date(Number(m[3]),Number(m[2])-1,Number(m[1]));
+      const d = new Date(s); return Number.isNaN(d.getTime()) ? null : d;
+    };
+    const effectiveLabel = r => {
+      const d = effectiveDay(r);
+      return d ? d.toLocaleDateString("tr-TR") : dateLabel(r.createdAt);
+    };
+    const reportDay = r => {
+      const value = r.createdAt || r.batchDate || r.effectiveDate;
+      if (!value) return null;
+      if (value?.toDate) return value.toDate();
+      const d = new Date(value);
+      return Number.isNaN(d.getTime()) ? effectiveDay(r) : d;
+    };
+    const inReportRange = r => {
+      const d = reportDay(r);
+      if (!$('reportFrom').value && !$('reportTo').value) return true;
+      if (!d) return false;
+      const day = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+      return (!$('reportFrom').value || day >= $('reportFrom').value)
+        && (!$('reportTo').value || day <= $('reportTo').value);
+    };
+    const monthKey = d => d ? `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}` : "";
+    const monthLabel = key => { const [y,m]=key.split("-").map(Number); return new Date(y,m-1,1).toLocaleDateString("tr-TR",{month:"short",year:"2-digit"}); };
+    function renderDashboard() {
+      const branch = $("dashboardBranch").value, status = $("dashboardStatus").value;
+      const filtered = dashboardPrices.filter(r => inReportRange(r) && (!branch || String(r.branchCode||"")===branch) &&
+        (!status || (status==="changed" ? !!r.changed : status==="delivered" ? !!r.delivered && !r.changed : status==="read" ? !!r.read && !r.delivered : !r.delivered && !r.changed)));
+      const total=filtered.length, read=filtered.filter(r=>r.read).length,
+        delivered=filtered.filter(r=>r.delivered).length,
+        changed=filtered.filter(r=>r.changed).length, pending=filtered.filter(r=>!r.delivered).length;
+      $("kpiTotal").textContent=total; $("kpiDelivered").textContent=delivered;
+      $("kpiChanged").textContent=changed; $("kpiPending").textContent=pending;
+      $("kpiRead").textContent=read;
+      $("kpiRate").textContent=(total ? (changed/total*100).toLocaleString("tr-TR",{maximumFractionDigits:1}) : "0")+"%";
+      const groups={};
+      filtered.forEach(r=>{
+        const c=String(r.branchCode||"—"); if(!groups[c]) groups[c]={total:0,read:0,delivered:0,changed:0,pending:0};
+        groups[c].total++; if(r.read)groups[c].read++; if(r.delivered)groups[c].delivered++; if(r.changed)groups[c].changed++; if(!r.delivered)groups[c].pending++;
+      });
+      $("branchStats").innerHTML=Object.entries(groups).sort((a,b)=>a[0].localeCompare(b[0],"tr")).map(([c,v])=>
+        `<tr><td>${esc(branchNames[c]||c)}</td><td>${v.total}</td><td>${v.read}</td><td>${v.delivered}</td><td>${v.changed}</td><td>${v.pending}</td><td>${(v.total?v.changed/v.total*100:0).toLocaleString("tr-TR",{maximumFractionDigits:1})}%</td></tr>`
+      ).join("") || '<tr><td colspan="7">Kayıt bulunamadı.</td></tr>';
+      const pendingGroups = {};
+      filtered.forEach(r => {
+        const c=String(r.branchCode||"—");
+        if(!pendingGroups[c]) pendingGroups[c]={unread:0,awaitingDelivery:0,awaitingLabel:0};
+        if(!r.read) pendingGroups[c].unread++;
+        else if(!r.delivered) pendingGroups[c].awaitingDelivery++;
+        else if(!r.changed) pendingGroups[c].awaitingLabel++;
+      });
+      $("branchPendingStats").innerHTML=Object.entries(pendingGroups)
+        .sort((a,b)=>a[0].localeCompare(b[0],"tr"))
+        .map(([c,v])=>{const sum=v.unread+v.awaitingDelivery+v.awaitingLabel;return `<tr><td>${esc(branchNames[c]||c)}</td><td>${v.unread}</td><td>${v.awaitingDelivery}</td><td>${v.awaitingLabel}</td><td><strong>${sum}</strong></td></tr>`;})
+        .join("") || '<tr><td colspan="5">Eksik işlem kaydı bulunamadı.</td></tr>';
+      const searchText = ($("archiveSearch")?.value || "").trim().toLocaleLowerCase("tr-TR");
+      const archiveBranch = $("archiveBranch")?.value || "";
+      const fromDate = $("archiveFrom")?.value || "";
+      const toDate = $("archiveTo")?.value || "";
+      const archiveRows = dashboardPrices.filter(r => {
+        const product = String(r.productName||r.name||"").toLocaleLowerCase("tr-TR");
+        const barcode = String(r.barcode||"").toLocaleLowerCase("tr-TR");
+        const d = effectiveDay(r);
+        const day = d && !Number.isNaN(d.getTime()) ? `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}` : "";
+        return (!searchText || product.includes(searchText) || barcode.includes(searchText))
+          && (!archiveBranch || String(r.branchCode||"")===archiveBranch)
+          && (!fromDate || (day && day>=fromDate))
+          && (!toDate || (day && day<=toDate));
+      });
+      $("priceRows").innerHTML=archiveRows.map(r=>
+        `<tr><td>${esc(effectiveLabel(r))}</td><td>${esc(branchNames[String(r.branchCode)]||r.branchName||r.branchCode||"—")}</td><td>${esc(r.productName||r.name||"—")}</td><td>${esc(r.barcode||"—")}</td><td>${money(r.newPrice)}</td><td>${esc(stateOf(r))}</td></tr>`
+      ).join("") || '<tr><td colspan="6">Filtreye uygun fiyat kaydı bulunamadı.</td></tr>';
+      $("loadOlderPrices").disabled = priceArchiveLoading || !priceArchiveHasMore;
+      $("loadOlderPrices").textContent = priceArchiveLoading ? "Yükleniyor..." : priceArchiveHasMore ? "Daha eski kayıtları yükle" : "Arşivin sonuna ulaşıldı";
+      const staffMap = new Map(dashboardUsers
+        .filter(u => u.role === "staff" && (!branch || String(u.branchCode||"") === branch))
+        .map(u => [u.uid || u.id, { name:u.fullName || u.username || u.email || (u.uid||u.id), branchCode:String(u.branchCode||""), read:0, delivered:0, changed:0, latest:null }]));
+      filtered.forEach(r => {
+        [["readByUid","readAt","read"],["deliveredByUid","deliveredAt","delivered"],["changedByUid","changedAt","changed"]].forEach(([uidKey,dateKey,countKey]) => {
+          const uid = r[uidKey]; if (!uid) return;
+          if (!staffMap.has(uid)) staffMap.set(uid,{name:r[uidKey.replace("Uid","Email")] || uid,branchCode:String(r.branchCode||""),read:0,delivered:0,changed:0,latest:null});
+          const person=staffMap.get(uid); person[countKey]++;
+          const stamp=r[dateKey] || r.updatedAt || r.createdAt;
+          const dt=stamp?.toDate ? stamp.toDate() : stamp ? new Date(stamp) : null;
+          if(dt && !Number.isNaN(dt.getTime()) && (!person.latest || dt>person.latest)) person.latest=dt;
+        });
+      });
+      $("staffStats").innerHTML=[...staffMap.entries()]
+        .sort((a,b)=>b[1].changed-a[1].changed || b[1].delivered-a[1].delivered || a[1].name.localeCompare(b[1].name,"tr"))
+        .map(([uid,v])=>`<tr><td><button type="button" class="secondary staff-detail-open" data-staff-uid="${esc(uid)}" style="padding:6px 10px">${esc(v.name)}</button></td><td>${esc(branchNames[v.branchCode]||v.branchCode||"—")}</td><td>${v.read}</td><td>${v.delivered}</td><td>${v.changed}</td><td>${v.read+v.delivered+v.changed}</td><td>${v.latest?esc(dateLabel(v.latest)):"—"}</td></tr>`)
+        .join("") || '<tr><td colspan="7">Personel işlem kaydı bulunamadı.</td></tr>';
+      $("staffStats").querySelectorAll(".staff-detail-open").forEach(btn=>btn.addEventListener("click",()=>{
+        const uid=btn.dataset.staffUid;
+        const person=staffMap.get(uid);
+        if(!person)return;
+        const events=[];
+        filtered.forEach(r=>{
+          [["readByUid","readAt","Okundu"],["deliveredByUid","deliveredAt","Teslim alındı"],["changedByUid","changedAt","Etiket tamamlandı"]].forEach(([uidKey,dateKey,label])=>{
+            if(r[uidKey]!==uid)return;
+            events.push({date:r[dateKey]||r.updatedAt||r.createdAt,label,record:r});
+          });
+        });
+        events.sort((a,b)=>{const da=a.date?.toDate?a.date.toDate():new Date(a.date||0);const db=b.date?.toDate?b.date.toDate():new Date(b.date||0);return db-da;});
+        currentStaffEvents = events; currentStaffName = person.name;
+        $("staffDetailAction").value=""; $("staffDetailSearch").value="";
+        $("staffDetailTitle").textContent=person.name+" · İşlem detayları";
+        $("staffDetailSummary").textContent=`${branchNames[person.branchCode]||person.branchCode||"Şube bilgisi yok"} · ${events.length} işlem · Seçili tarih/şube kapsamı`;
+        renderStaffDetail();
+        $("staffDetailPanel").classList.remove("hidden");
+        $("staffDetailPanel").scrollIntoView({behavior:"smooth",block:"nearest"});
+      }));
+      $("importRows").innerHTML=dashboardImports.map(r=>
+        `<tr><td>${esc(dateLabel(r.uploadedAt))}</td><td>${esc(r.fileName||"—")}</td><td>${r.sourceRowCount??"—"}</td><td>${r.createdRecordCount??r.rowCount??"—"}</td><td>${esc(r.uploadedByName||"—")}</td><td>${esc(r.status||"—")}</td></tr>`
+      ).join("") || '<tr><td colspan="6">Aktarım geçmişi bulunamadı.</td></tr>';
+    }
+    async function loadDashboard() {
+      $("refreshDashboard").disabled=true;
+      message("dashboardStatusMessage","Yönetim verileri yükleniyor...");
+      $("dashboardStatusMessage").classList.remove("hidden");
+      try {
+        priceArchiveCursor = null; priceArchiveHasMore = true;
+        const [priceSnap, importSnap, userSnap] = await Promise.all([
+          getDocs(query(collection(db,"priceChanges"),orderBy("createdAt","desc"),limit(500))),
+          getDocs(query(collection(db,"imports"),orderBy("uploadedAt","desc"),limit(100))),
+          getDocs(collection(db,"users"))
+        ]);
+        dashboardPrices=priceSnap.docs.map(d=>({id:d.id,...d.data()}));
+        priceArchiveCursor = priceSnap.docs.length ? priceSnap.docs[priceSnap.docs.length-1] : null;
+        priceArchiveHasMore = priceSnap.docs.length === 500;
+        dashboardImports=importSnap.docs.map(d=>({id:d.id,...d.data()}));
+        dashboardUsers=userSnap.docs.map(d=>({uid:d.id,...d.data()}));
+        const archiveOptions = '<option value="">Tüm şubeler</option>'+Object.entries(branchNames).map(([c,n])=>`<option value="${c}">${c} · ${n}</option>`).join("");
+        $("archiveBranch").innerHTML = archiveOptions;
+        const current = $("dashboardBranch").value;
+        $("dashboardBranch").innerHTML='<option value="">Tüm şubeler</option>'+Object.entries(branchNames).map(([c,n])=>`<option value="${c}">${c} · ${n}</option>`).join("");
+        $("dashboardBranch").value=current;
+        renderDashboard();
+        message("dashboardStatusMessage",`Güncellendi · ${dashboardPrices.length} fiyat kaydı ve ${dashboardImports.length} aktarım kaydı listelendi.`,"success");
+      } catch(err) {
+        message("dashboardStatusMessage","Yönetim verileri alınamadı: "+(err.message||err),"error");
+      } finally { $("refreshDashboard").disabled=false; }
+    }
+
+    function renderStaffDetail(){
+      const action=$("staffDetailAction").value;
+      const term=$("staffDetailSearch").value.trim().toLocaleLowerCase("tr-TR");
+      const rows=currentStaffEvents.filter(e=>{
+        if(action && e.label!==action) return false;
+        if(term){const product=String(e.record.productName||e.record.name||"").toLocaleLowerCase("tr-TR");const barcode=String(e.record.barcode||"").toLocaleLowerCase("tr-TR");if(!product.includes(term)&&!barcode.includes(term))return false;}
+        return true;
+      });
+      $("staffDetailCount").textContent=`${rows.length} / ${currentStaffEvents.length} işlem gösteriliyor`;
+      $("staffDetailRows").innerHTML=rows.map(e=>`<tr><td>${esc(dateLabel(e.date))}</td><td>${esc(e.label)}</td><td>${esc(e.record.productName||e.record.name||"—")}</td><td>${esc(e.record.barcode||"—")}</td><td>${esc(branchNames[String(e.record.branchCode)]||e.record.branchName||e.record.branchCode||"—")}</td><td>${money(e.record.newPrice)}</td></tr>`).join("")||'<tr><td colspan="6">Filtreye uygun işlem bulunamadı.</td></tr>';
+    }
+    $("staffDetailAction").addEventListener("change",renderStaffDetail);
+    $("staffDetailSearch").addEventListener("input",renderStaffDetail);
+    $("closeStaffDetail").addEventListener("click",()=>$("staffDetailPanel").classList.add("hidden"));
+    $("exportStaffDetail").addEventListener("click",()=>{
+      if(!currentStaffEvents.length){message("dashboardStatusMessage","Dışa aktarılacak personel işlemi bulunamadı.","error");return;}
+      const rows=[["Personel","İşlem tarihi","İşlem","Ürün","Barkod","Şube","Fiyat"],...currentStaffEvents.map(e=>[
+        currentStaffName,dateLabel(e.date),e.label,e.record.productName||e.record.name||"",e.record.barcode||"",
+        branchNames[String(e.record.branchCode)]||e.record.branchName||e.record.branchCode||"",e.record.newPrice??""] )];
+      const csv="\ufeff"+rows.map(row=>row.map(v=>'"'+String(v??"").replace(/"/g,'""')+'"').join(";")).join("\r\n");
+      const blob=new Blob([csv],{type:"text/csv;charset=utf-8;"}); const url=URL.createObjectURL(blob);
+      const a=document.createElement("a"); a.href=url; a.download="personel-islem-detayi.csv"; a.click(); URL.revokeObjectURL(url);
+    });
+    $("refreshDashboard").addEventListener("click",loadDashboard);
+    $("dashboardBranch").addEventListener("change",renderDashboard);
+    $("dashboardStatus").addEventListener("change",renderDashboard);
+    ["reportFrom","reportTo"].forEach(id => $(id).addEventListener("change",renderDashboard));
+    ["archiveSearch","archiveBranch","archiveFrom","archiveTo"].forEach(id => {
+      $(id).addEventListener(id==="archiveSearch" ? "input" : "change",renderDashboard);
+    });
+    $("resetArchive").addEventListener("click",()=>{
+      $("archiveSearch").value=""; $("archiveBranch").value="";
+      $("archiveFrom").value=""; $("archiveTo").value="";
+      renderDashboard();
+    });
+    $("loadOlderPrices").addEventListener("click",async()=>{
+      if(priceArchiveLoading || !priceArchiveHasMore || !priceArchiveCursor) return;
+      priceArchiveLoading=true; renderDashboard();
+      try {
+        const snap=await getDocs(query(collection(db,"priceChanges"),orderBy("createdAt","desc"),startAfter(priceArchiveCursor),limit(500)));
+        dashboardPrices.push(...snap.docs.map(d=>({id:d.id,...d.data()})));
+        priceArchiveCursor=snap.docs.length?snap.docs[snap.docs.length-1]:priceArchiveCursor;
+        priceArchiveHasMore=snap.docs.length===500;
+      } catch(err) {
+        message("dashboardStatusMessage","Eski fiyat kayıtları yüklenemedi: "+(err.message||err),"error");
+      } finally { priceArchiveLoading=false; renderDashboard(); }
+    });
+    $("loadAllPrices").addEventListener("click",async()=>{
+      if(priceArchiveLoading) return;
+      priceArchiveLoading=true; $("loadAllPrices").disabled=true;
+      message("dashboardStatusMessage","Eksiksiz rapor için arşiv sayfaları yükleniyor. Kayıt sayısına göre biraz sürebilir...");
+      $("dashboardStatusMessage").classList.remove("hidden");
+      try {
+        while(priceArchiveHasMore && priceArchiveCursor) {
+          const snap=await getDocs(query(collection(db,"priceChanges"),orderBy("createdAt","desc"),startAfter(priceArchiveCursor),limit(500)));
+          if(snap.empty) { priceArchiveHasMore=false; break; }
+          dashboardPrices.push(...snap.docs.map(d=>({id:d.id,...d.data()})));
+          priceArchiveCursor=snap.docs[snap.docs.length-1];
+          priceArchiveHasMore=snap.docs.length===500;
+          message("dashboardStatusMessage",`Rapor verileri yükleniyor: ${dashboardPrices.length} fiyat kaydı...`);
+        }
+        renderDashboard();
+        message("dashboardStatusMessage",`Eksiksiz arşiv yüklemesi tamamlandı. ${dashboardPrices.length} fiyat kaydı rapora dahil edildi.`,"success");
+      } catch(err) {
+        message("dashboardStatusMessage","Arşiv yüklenemedi: "+(err.message||err),"error");
+      } finally { priceArchiveLoading=false; $("loadAllPrices").disabled=false; renderDashboard(); }
+    });
+    function getReportRows() {
+      const branch = $("dashboardBranch").value;
+      const status = $("dashboardStatus").value;
+      return dashboardPrices.filter(r => inReportRange(r) && (!branch || String(r.branchCode||"")===branch) &&
+        (!status || (status==="changed" ? !!r.changed : status==="delivered" ? !!r.delivered && !r.changed : status==="read" ? !!r.read && !r.delivered : !r.delivered && !r.changed)));
+    }
+    $("exportManagementXlsx").addEventListener("click",()=>{
+      const rows=getReportRows();
+      const usersById = new Map(dashboardUsers.map(u=>[u.uid||u.id,u.fullName||u.username||u.email||u.uid||u.id]));
+      const details = rows.map(r=>({
+        "Kayıt tarihi":dateLabel(r.createdAt),"Şube":branchNames[String(r.branchCode)]||r.branchName||r.branchCode||"",
+        "Ürün":r.productName||r.name||"","Barkod":r.barcode||"","Yeni fiyat":r.newPrice??"",
+        "Okundu":r.read?"Evet":"Hayır","Teslim alındı":r.delivered?"Evet":"Hayır","Etiket tamamlandı":r.changed?"Evet":"Hayır",
+        "Okuyan personel":usersById.get(r.readByUid)||r.readByEmail||"",
+        "Teslim alan personel":usersById.get(r.deliveredByUid)||r.deliveredByEmail||"",
+        "Etiketi tamamlayan personel":usersById.get(r.changedByUid)||r.changedByEmail||""
+      }));
+      const wb=XLSX.utils.book_new();
+      const summary=[
+        ["AVCAN GIDA - YÖNETİM RAPORU"],["Rapor tarihi",new Date().toLocaleString("tr-TR")],
+        ["Şube filtresi",$("dashboardBranch").selectedOptions[0]?.text||"Tüm şubeler"],
+        ["Durum filtresi",$("dashboardStatus").selectedOptions[0]?.text||"Tüm durumlar"],
+        ["Başlangıç",$("reportFrom").value||"—"],["Bitiş",$("reportTo").value||"—"],
+        ["Kayıt sayısı",rows.length],["Teslim alınan",rows.filter(r=>r.delivered).length],
+        ["Tamamlanan",rows.filter(r=>r.changed).length]
+      ];
+      XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(summary),"Özet");
+      [ ["Şube performansı","branchStats"],["Personel performansı","staffStats"],["Aktarım geçmişi","importRows"] ].forEach(([name,id])=>{
+        const table=$(id).closest("table"); XLSX.utils.book_append_sheet(wb,XLSX.utils.table_to_sheet(table),name);
+      });
+      XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(details),"Fiyat kayıtları");
+      XLSX.writeFile(wb,`AVCAN_Yonetim_Raporu_${new Date().toISOString().slice(0,10)}.xlsx`);
+      message("dashboardStatusMessage",`${rows.length} fiyat kaydı ve performans tabloları Excel raporuna aktarıldı. Yalnızca belleğe yüklenen kayıtlar dahildir.`,"success");
+    });
+    $("printManagementReport").addEventListener("click",()=>{
+      window.print();
+    });
+    $("file").addEventListener("change",async e=>{workbook=null;parsedRows=[];$("validate").disabled=true;$("send").disabled=true;$("preview").classList.add("hidden");const f=e.target.files[0];if(!f)return;
+     try{const data=await f.arrayBuffer();workbook=XLSX.read(data,{type:"array",cellDates:false});$("sheet").innerHTML=workbook.SheetNames.map(n=>`<option>${n}</option>`).join("");$("sheet").disabled=false;$("validate").disabled=false;message("status",`Dosya seçildi: ${f.name} · ${workbook.SheetNames.length} sayfa`);}
+     catch(err){message("status","Excel okunamadı: "+err.message,"error");}});
+    const norm = s => String(s ?? "")
+      .toLocaleLowerCase("tr-TR")
+      .replace(/[çğıöşü]/g, c => ({
+        "ç": "c",
+        "ğ": "g",
+        "ı": "i",
+        "ö": "o",
+        "ş": "s",
+        "ü": "u"
+      })[c])
+      .replace(/[^a-z0-9]/g, "");
+    function parsePrice(v){
+      if (v === "" || v === null || v === undefined) return null;
+      if (typeof v === "number") return Number.isFinite(v) ? v : null;
+      let s=String(v).trim().replace(/[₺\s]/g,"");
+      if(!s) return null;
+      if(s.includes(",")&&s.includes(".")) s=s.replace(/\./g,"").replace(",",".");
+      else s=s.replace(",",".");
+      const n=Number(s); return Number.isFinite(n) ? n : null;
+    }
+    function excelDateISO(v){
+      if(v instanceof Date && !isNaN(v)) return `${v.getFullYear()}-${String(v.getMonth()+1).padStart(2,"0")}-${String(v.getDate()).padStart(2,"0")}`;
+      if(typeof v === "number"){
+        const d=XLSX.SSF.parse_date_code(v);
+        if(d) return `${d.y}-${String(d.m).padStart(2,"0")}-${String(d.d).padStart(2,"0")}`;
+      }
+      const s=String(v??"").trim(); if(!s) return "";
+      let m=s.match(/^(\d{1,2})[.\/-](\d{1,2})[.\/-](\d{4})/);
+      if(m) return `${m[3]}-${m[2].padStart(2,"0")}-${m[1].padStart(2,"0")}`;
+      m=s.match(/^(\d{4})-(\d{2})-(\d{2})/); if(m) return s.slice(0,10);
+      const d=new Date(s); if(!isNaN(d)) return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+      return "";
+    }
+    const dateTR = iso => { const [y,m,d]=iso.split("-"); return `${d}.${m}.${y}`; };
+    $("validate").onclick=()=>{
+      try{
+        const sheet=workbook.Sheets[$("sheet").value];
+        // Başlıklar gerçek dosyada 4. satırda; diğer Excel sütunlarına dokunulmaz.
+        const raw=XLSX.utils.sheet_to_json(sheet,{range:3,defval:"",raw:true,cellDates:true});
+        if(!raw.length) throw Error("Excel sayfasında veri bulunamadı.");
+        const headers=Object.keys(raw[0]), find=(...names)=>headers.find(h=>names.includes(norm(h)));
+        const hBarcode=find("barkod1"), hName=find("stokadi"), hF1=find("satisfiyat1"), hF2=find("satisfiyat2"), h95=find("aydavmf"), h96=find("fetavmf"), hDate=find("duzeltmetarihi");
+        if(!hBarcode||!hName||!hF1||!hF2||!h95||!h96||!hDate) throw Error("Gerekli başlıklar bulunamadı. BARKOD1, STOK ADI, SATIŞ FİYAT 1, SATIŞ FİYAT 2, AYD.AVMF, FET.AVMF ve DÜZELTME TARİHİ sütunlarını kontrol edin.");
+        parsedRows=raw.map((r,i)=>{
+          const prices=[];
+          const f1=parsePrice(r[hF1]); if(f1!==null) ["20","40","41"].forEach(branchCode=>prices.push({branchCode,newPrice:f1}));
+          const f2=parsePrice(r[hF2]); if(f2!==null) prices.push({branchCode:"10",newPrice:f2});
+          const f95=parsePrice(r[h95]); if(f95!==null) prices.push({branchCode:"95",newPrice:f95});
+          const f96=parsePrice(r[h96]); if(f96!==null) prices.push({branchCode:"96",newPrice:f96});
+          return {sourceRow:i+5,barcode:String(r[hBarcode]??"").trim(),productName:String(r[hName]??"").trim(),effectiveDate:excelDateISO(r[hDate]),prices};
+        }).filter(r=>r.barcode||r.productName||r.prices.length);
+        if(!parsedRows.length) throw Error("Aktarılabilir ürün satırı bulunamadı.");
+        const fileSeen=new Set(); let recordCount=0; const branchCounts={};
+        parsedRows.forEach(row=>{
+          if(!row.prices.length) return;
+          if(!row.barcode||!row.productName) throw Error(`${row.sourceRow}. satırda BARKOD1 veya STOK ADI eksik.`);
+          if(!row.effectiveDate) throw Error(`${row.sourceRow}. satırda DÜZELTME TARİHİ eksik veya geçersiz.`);
+          row.prices.forEach(p=>{
+            if(p.newPrice<0) throw Error(`${row.sourceRow}. satırda negatif fiyat var.`);
+            const key=`${p.branchCode}:${row.barcode}`;
+            if(fileSeen.has(key)) throw Error(`Excel içinde tekrarlanan barkod/şube: ${row.barcode} / ${branchNames[p.branchCode]}`);
+            fileSeen.add(key); recordCount++; branchCounts[p.branchCode]=(branchCounts[p.branchCode]||0)+1;
+          });
+        });
+        parsedRows=parsedRows.filter(r=>r.prices.length>0);
+        if(!parsedRows.length) throw Error("Dolu fiyat hücresi bulunamadı.");
+        if(recordCount>4000) throw Error("Toplam şube kaydı 4000'i aşamaz.");
+        $("rows").innerHTML=parsedRows.slice(0,100).flatMap(r=>r.prices.map(p=>`<tr><td>${esc(branchNames[p.branchCode])}</td><td>${esc(r.barcode)}</td><td>${esc(r.productName)}</td><td>${money(p.newPrice)}</td><td>${esc(dateTR(r.effectiveDate))}</td></tr>`)).join("");
+        $("summary").textContent=`${parsedRows.length} ürün satırı · ${recordCount} şube fiyat kaydı. Dağılım: ${Object.entries(branchCounts).map(([c,n])=>`${branchNames[c]}: ${n}`).join(" · ")}. ${recordCount>100?"İlk 100 kayıt gösteriliyor.":""}`;
+        $("preview").classList.remove("hidden");$("send").disabled=false;message("status","Kontrol başarılı. Excel'deki satır tarihleri ve fiyat dağılımı aktarılmaya hazır.","success");
+      }catch(err){parsedRows=[];$("send").disabled=true;message("status",err.message,"error");}
+    };
+
+$("send").onclick = async () => {
+  if (!parsedRows.length) return;
+
+  $("send").disabled = true;
+  message("status", "Aktarım başlatılıyor...");
+
+  let importId = null;
+
+  try {
+    const user = auth.currentUser;
+    if (!user) throw new Error("Önce yönetici girişi yapmalısınız.");
+
+    // Yönetici yetkisini tekrar kontrol et.
+    const profileSnap = await getDoc(doc(db, "users", user.uid));
+    if (!profileSnap.exists()) throw new Error("Kullanıcı profili bulunamadı.");
+
+    const profile = profileSnap.data();
+    if (
+      !["admin", "owner_admin"].includes(profile.role) ||
+      profile.approvalStatus !== "approved"
+    ) {
+      throw new Error("Onaylı yönetici yetkisi gerekli.");
+    }
+
+    const mode = "excel-columns";
+    const targetBranches = ["20", "40", "41", "10", "95", "96"];
+    const records = [];
+    for (const row of parsedRows) {
+      for (const price of row.prices) {
+        records.push({
+          branchCode: price.branchCode,
+          branchName: branchNames[price.branchCode],
+          barcode: row.barcode,
+          productName: row.productName,
+          oldPrice: 0, // Şema uyumluluğu; uygulama ekranlarında gösterilmez.
+          newPrice: price.newPrice,
+          effectiveDate: row.effectiveDate,
+          batchDate: dateTR(row.effectiveDate)
+        });
+      }
+    }
+
+    if (records.length > 4000) {
+      throw new Error("Toplam şube kaydı 4000'i aşamaz.");
+    }
+
+    // Aktarım geçmişi kaydı.
+    const importRef = doc(collection(db, "imports"));
+    importId = importRef.id;
+
+    await writeBatch(db).set(importRef, {
+      uploadedAt: serverTimestamp(),
+      uploadedBy: user.uid,
+      uploadedByName: profile.fullName || user.email || "Yönetici",
+      fileName: $("file").files[0]?.name || "fiyat-listesi.xlsx",
+      sourceRowCount: parsedRows.length,
+      rowCount: records.length,
+      routingMode: mode,
+      targetBranches,
+      status: "processing",
+      note: $("importNote").value.trim()
+    }).commit();
+
+    // 450 kayıtlık gruplarla önce gizli kayıtları oluştur.
+    const createdRefs = [];
+
+    for (let i = 0; i < records.length; i += 450) {
+      const batch = writeBatch(db);
+      const part = records.slice(i, i + 450);
+
+      for (const record of part) {
+        const ref = doc(collection(db, "priceChanges"));
+        createdRefs.push(ref);
+
+        batch.set(ref, {
+          ...record,
+          importId,
+          createdAt: serverTimestamp(),
+          createdBy: user.uid,
+          status: "pending",
+          published: false
+        });
+      }
+
+      await batch.commit();
+      message("status", `Kayıtlar hazırlanıyor: ${Math.min(i + part.length, records.length)} / ${records.length}`);
+    }
+
+    // Bütün kayıtlar oluşturulduktan sonra yayımla.
+    for (let i = 0; i < createdRefs.length; i += 450) {
+      const batch = writeBatch(db);
+
+      createdRefs.slice(i, i + 450).forEach(ref => {
+        batch.update(ref, { published: true });
+      });
+
+      await batch.commit();
+      message("status", `Yayımlanıyor: ${Math.min(i + 450, createdRefs.length)} / ${createdRefs.length}`);
+    }
+
+    await writeBatch(db).update(importRef, {
+      status: "completed",
+      completedAt: serverTimestamp(),
+      createdRecordCount: records.length
+    }).commit();
+
+    message(
+      "status",
+      `Aktarım tamamlandı!\nExcel satırı: ${parsedRows.length}\nOluşturulan şube kaydı: ${records.length}\nAktarım kodu: ${importId}`,
+      "success"
+    );
+
+  } catch (err) {
+    // Başarısız aktarımın kayıtlarını temizlemeyi dene.
+    if (importId) {
+      try {
+        while (true) {
+          const q = query(
+            collection(db, "priceChanges"),
+            where("importId", "==", importId),
+            limit(450)
+          );
+
+          const snap = await getDocs(q);
+          if (snap.empty) break;
+
+          const batch = writeBatch(db);
+          snap.docs.forEach(item => batch.delete(item.ref));
+          await batch.commit();
+        }
+
+        await writeBatch(db).update(doc(db, "imports", importId), {
+          status: "failed",
+          errorMessage: String(err.message || err).slice(0, 500),
+          failedAt: serverTimestamp()
+        }).commit();
+
+      } catch (cleanupError) {
+        console.error("Aktarım temizleme hatası:", cleanupError);
+      }
+    }
+
+    console.error(err);
+    message(
+      "status",
+      "Aktarım başarısız: " + (err.message || err),
+      "error"
+    );
+
+  } finally {
+    $("send").disabled = false;
+  }
+};
+onAuthStateChanged(auth, async user => {
+  $("loginCard").classList.toggle("hidden", !!user);
+  $("appCard").classList.add("hidden");
+  $("dashboardCard").classList.add("hidden");
+  $("logout").classList.add("hidden");
+
+  if (!user) return;
+
+  try {
+    const snap = await getDoc(doc(db, "users", user.uid));
+
+    if (!snap.exists()) throw new Error("Kullanıcı profili bulunamadı.");
+
+    const profile = snap.data();
+
+    if (
+      !["admin", "owner_admin"].includes(profile.role) ||
+      profile.approvalStatus !== "approved"
+    ) {
+      throw new Error("Bu panel yalnızca onaylı yöneticilere açıktır.");
+    }
+
+    $("appCard").classList.remove("hidden");
+    $("dashboardCard").classList.remove("hidden");
+    $("logout").classList.remove("hidden");
+    await loadDashboard();
+
+  } catch (err) {
+    message("loginStatus", err.message, "error");
+    await signOut(auth);
+  }
+});
+
+// Yönetici giriş butonu
+$("login").addEventListener("click", async () => {
+  const email = $("email").value.trim();
+  const password = $("password").value;
+
+  if (!email || !password) {
+    message("loginStatus", "E-posta ve şifrenizi girin.", "error");
+    return;
+  }
+
+  $("login").disabled = true;
+  message("loginStatus", "Giriş kontrol ediliyor...");
+
+  try {
+    await signInWithEmailAndPassword(auth, email, password);
+    // Başarılı girişte onAuthStateChanged kullanıcı profilini kontrol eder.
+  } catch (err) {
+    let errorText = "Giriş başarısız: " + (err.message || "Bilinmeyen hata");
+    if (err.code === "auth/invalid-credential") {
+      errorText = "E-posta veya şifre hatalı.";
+    } else if (err.code === "auth/too-many-requests") {
+      errorText = "Çok fazla deneme yapıldı. Bir süre sonra tekrar deneyin.";
+    } else if (err.code === "auth/unauthorized-domain") {
+      errorText = "Bu web adresi Firebase Authentication için yetkilendirilmemiş.";
+    } else if (err.code === "auth/network-request-failed") {
+      errorText = "İnternet bağlantısını kontrol edin ve tekrar deneyin.";
+    }
+    message("loginStatus", errorText, "error");
+  } finally {
+    $("login").disabled = false;
+  }
+});
+
+// Şifre alanında Enter tuşuyla giriş
+$("password").addEventListener("keydown", event => {
+  if (event.key === "Enter") $("login").click();
+});
+
+// Çıkış butonu
+$("logout").addEventListener("click", async () => {
+  try {
+    await signOut(auth);
+  } catch (err) {
+    console.error("Çıkış yapılamadı:", err);
+  }
+});
+</script>
+</body>
+</html>

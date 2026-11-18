@@ -1,0 +1,252 @@
+
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function userExists() {
+      return signedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function userDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function approved() {
+      return userExists()
+        && userDoc().approvalStatus == "approved";
+    }
+
+    function admin() {
+      return approved()
+        && userDoc().role in ["admin", "owner_admin"];
+    }
+
+    function staff() {
+      return approved()
+        && userDoc().role == "staff";
+    }
+
+    function validBranch(branchCode) {
+      return branchCode in ["10", "20", "40", "41", "95", "96"];
+    }
+
+    function sameBranch(branchCode) {
+      return approved()
+        && (admin() || userDoc().branchCode == branchCode);
+    }
+
+    function validWorkflowUpdate() {
+      let changed = request.resource.data.diff(resource.data).affectedKeys();
+
+      return staff()
+        && resource.data.branchCode == userDoc().branchCode
+        && request.resource.data.branchCode == resource.data.branchCode
+        && request.resource.data.updatedByUid == request.auth.uid
+        && request.resource.data.updatedAt == request.time
+        && (
+          (
+            changed.hasOnly([
+              "read", "readAt", "readByUid", "readByEmail",
+              "updatedAt", "updatedByUid"
+            ])
+            && changed.hasAny(["read"])
+            && request.resource.data.read == true
+            && resource.data.get("read", false) == false
+            && request.resource.data.readAt ==
+              (request.resource.data.read ? request.time : null)
+            && request.resource.data.readByUid ==
+              (request.resource.data.read ? request.auth.uid : null)
+            && request.resource.data.readByEmail ==
+              (request.resource.data.read ? request.auth.token.email : null)
+          )
+          ||
+          (
+            changed.hasOnly([
+              "delivered", "deliveredAt", "deliveredByUid",
+              "deliveredByEmail", "updatedAt", "updatedByUid"
+            ])
+            && changed.hasAny(["delivered"])
+            && request.resource.data.delivered == true
+            && resource.data.get("delivered", false) == false
+            && resource.data.get("read", false) == true
+            && request.resource.data.deliveredAt ==
+              (request.resource.data.delivered ? request.time : null)
+            && request.resource.data.deliveredByUid ==
+              (request.resource.data.delivered ? request.auth.uid : null)
+            && request.resource.data.deliveredByEmail ==
+              (request.resource.data.delivered ? request.auth.token.email : null)
+          )
+          ||
+          (
+            changed.hasOnly([
+              "changed", "changedAt", "changedByUid",
+              "changedByEmail", "updatedAt", "updatedByUid"
+            ])
+            && changed.hasAny(["changed"])
+            && request.resource.data.changed == true
+            && resource.data.get("changed", false) == false
+            && resource.data.get("delivered", false) == true
+            && request.resource.data.changedAt ==
+              (request.resource.data.changed ? request.time : null)
+            && request.resource.data.changedByUid ==
+              (request.resource.data.changed ? request.auth.uid : null)
+            && request.resource.data.changedByEmail ==
+              (request.resource.data.changed ? request.auth.token.email : null)
+          )
+        );
+    }
+
+    match /branches/{branchCode} {
+      allow read: if signedIn();
+      allow write: if false;
+    }
+
+    match /users/{uid} {
+      allow read: if signedIn()
+        && (request.auth.uid == uid || admin());
+
+      // Kullanıcı oluşturma şimdilik güvenli kayıt akışına bırakılmıştır.
+      allow create: if false;
+
+      allow update: if (
+        admin()
+        && request.resource.data.role == "staff"
+        && request.resource.data.approvalStatus in [
+          "approved", "rejected", "pending"
+        ]
+        && (
+          !("branchCode" in request.resource.data)
+          || validBranch(request.resource.data.branchCode)
+        )
+        && request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly([
+            "approvalStatus", "branchCode", "role",
+            "approvedBy", "approvedByName", "approvedAt",
+            "rejectedBy", "rejectedAt"
+          ])
+      ) || (
+        signedIn()
+        && request.auth.uid == uid
+        && request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(["fcmTokens", "lastSeenAt"])
+      );
+
+      allow delete: if admin();
+    }
+
+    match /imports/{importId} {
+      allow read: if admin();
+
+      allow create: if admin()
+        && request.resource.data.uploadedBy == request.auth.uid
+        && request.resource.data.uploadedAt == request.time
+        && request.resource.data.status == "processing"
+        && request.resource.data.sourceRowCount is int
+        && request.resource.data.rowCount is int
+        && request.resource.data.sourceRowCount > 0
+        && request.resource.data.rowCount > 0
+        && request.resource.data.keys().hasOnly([
+          "uploadedAt", "uploadedBy", "uploadedByName",
+          "fileName", "sourceRowCount", "rowCount",
+          "routingMode", "targetBranches", "status", "note"
+        ]);
+
+      allow update: if admin()
+        && request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly([
+            "status", "completedAt", "createdRecordCount",
+            "errorMessage", "failedAt"
+          ])
+        && request.resource.data.status in [
+          "processing", "completed", "failed"
+        ];
+
+      allow delete: if false;
+    }
+
+    match /priceChanges/{changeId} {
+      allow read: if sameBranch(resource.data.branchCode)
+        && resource.data.published == true;
+
+      allow create: if admin()
+        && validBranch(request.resource.data.branchCode)
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.published == false
+        && request.resource.data.status == "pending"
+        && request.resource.data.barcode is string
+        && request.resource.data.productName is string
+        && request.resource.data.oldPrice is number
+        && request.resource.data.newPrice is number
+        && request.resource.data.importId is string
+        && request.resource.data.keys().hasOnly([
+          "importId", "branchCode", "branchName",
+          "barcode", "productName", "oldPrice", "newPrice",
+          "effectiveDate", "batchDate",
+          "createdAt", "createdBy", "status", "published"
+        ]);
+
+      allow update: if (
+        admin()
+        && resource.data.published == false
+        && request.resource.data.published == true
+        && request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(["published"])
+      ) || validWorkflowUpdate();
+
+      allow delete: if admin();
+    }
+
+    match /acknowledgements/{ackId} {
+      allow read: if admin()
+        || (
+          approved()
+          && resource.data.branchCode == userDoc().branchCode
+        );
+
+      allow create: if staff()
+        && request.resource.data.branchCode == userDoc().branchCode
+        && request.resource.data.updatedBy == request.auth.uid
+        && request.resource.data.keys().hasOnly([
+          "changeId", "branchCode", "readAt", "receivedAt",
+          "labelChangedAt", "photoPath", "updatedBy"
+        ]);
+
+      allow update: if staff()
+        && resource.data.branchCode == userDoc().branchCode
+        && request.resource.data.branchCode == resource.data.branchCode
+        && request.resource.data.updatedBy == request.auth.uid
+        && request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly([
+            "readAt", "receivedAt", "labelChangedAt",
+            "photoPath", "updatedBy"
+          ]);
+
+      allow delete: if admin();
+    }
+    // TEST AKTARIM GEÇMİŞİ
+    match /testImports/{importId} {
+      allow read, create, update, delete: if admin();
+    }
+
+    // TEST FİYAT DEĞİŞİKLİKLERİ
+    match /testPriceChanges/{changeId} {
+      allow read, create, update, delete: if admin();
+    }
+    // Uygulama güncelleme bilgisi herkese açık olabilir; yalnızca yönetici değiştirebilir.
+    match /appUpdates/{platform} {
+      allow read: if platform == "android";
+      allow write: if admin();
+    }
+
+    match /usernames/{key} {
+      allow read, write: if false;
+    }
+  }
+}

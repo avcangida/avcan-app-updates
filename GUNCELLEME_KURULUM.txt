@@ -1,0 +1,45 @@
+AVCAN GIDA - UYGULAMA İÇİ GÜNCELLEME
+
+BU PAKETİN İÇERİĞİ
+- Android uygulamasına Firestore üzerinden sürüm kontrolü eklendi.
+- Yeni APK, Android DownloadManager ile indirilir. İndirme bildirime dokunulunca Android kurulum ekranı açılır.
+- Android kurulum onayı kullanıcı tarafından verilir; sessiz kurulum yapılmaz.
+- Uygulama sürümü 0.2.0 / versionCode 2 olarak artırıldı.
+- Release imzası, kullanıcının kendi bilgisayarındaki ~/.gradle/gradle.properties değerlerinden alınır.
+
+ÖNEMLİ: BU GÜNCELLEME ÖZELLİĞİ ESKİ 0.1.0 SÜRÜMÜNDE YOKTUR.
+Önce 0.2.0 APK'yı tüm telefonlara bir defaya mahsus manuel dağıtın. Bundan sonraki sürümler uygulama içinden kontrol edilebilir.
+
+1) BU PAKETTEKİ DOSYALARI MEVCUT PROJE KLASÖRÜNE AYNI YOLLARLA KOPYALAYIN.
+2) app/build.gradle.kts release imzası için aşağıdaki kullanıcı profili dosyası mevcut olmalıdır:
+   C:\Users\USER\.gradle\gradle.properties
+   AVCAN_STORE_FILE=C:/Users/USER/avcan-gida-release.jks
+   AVCAN_STORE_PASSWORD=...
+   AVCAN_KEY_PASSWORD=...
+   ŞİFRELERİ KİMSEYLE PAYLAŞMAYIN.
+3) Proje kökünde public\updates klasörünü oluşturun.
+4) Her yeni release APK'yı public\updates\app-release.apk adıyla kopyalayın.
+5) Firebase Hosting'i deploy edin: firebase deploy --only hosting
+6) Firestore Console > appUpdates koleksiyonunu oluşturun; android adlı belge ekleyin:
+   versionCode: 3 (bir sonraki sürüm için; ilk 0.2.0 dağıtımında güncelleme belgesi eklemeyin veya 2'den büyük bir sürüm yayınlandığında güncelleyin)
+   versionName: "0.2.1"
+   apkUrl: "https://avcan-gida-fiyat-takip.web.app/updates/app-release.apk"
+   releaseNotes: "Güncelleme açıklaması"
+   mandatory: false
+
+7) Firestore kurallarını deploy edin: firebase deploy --only firestore:rules
+   Not: Kurallardaki appUpdates/android belgesi herkese açık yalnızca okuma izni alır; diğer yazma işlemleri admin ile sınırlıdır.
+
+HER YENİ SÜRÜMDE
+- app/build.gradle.kts içindeki versionCode değerini bir artırın ve versionName değerini değiştirin.
+- Aynı avcan-gida-release.jks ve alias avcan-gida ile imzalayın.
+- APK'yı public/updates/app-release.apk olarak değiştirip Hosting'e deploy edin.
+- Firestore appUpdates/android belgesindeki versionCode, versionName, releaseNotes alanlarını güncelleyin.
+
+GÜVENLİK
+- Bu pakete serviceAccountKey.json, .jks veya şifre eklenmemiştir.
+- Eski debug imzasıyla release APK güncellenemez. İlk 0.2.0 sürümünü mevcut debug sürümü üstüne kurarken imza uyuşmazlığı varsa eski debug uygulamasını kaldırmak gerekir; yerel uygulama verisi silinebilir.
+
+
+UYGULAMA KÜNYESİ
+Yönetim sekmesinin alt kısmında “Yapımcı: İbrahim Kayan” bilgisi gösterilir.
