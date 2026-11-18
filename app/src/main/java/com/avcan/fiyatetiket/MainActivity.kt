@@ -37,6 +37,10 @@ private val Navy = Color(0xFF12304A)
 private val Blue = Color(0xFF1769AA)
 private val Pale = Color(0xFFF3F6F9)
 
+@Suppress("DEPRECATION")
+private fun appVersionName(context: Context): String =
+    context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "Bilinmiyor"
+
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -82,6 +86,7 @@ fun AuthGate() {
     val auth = remember { FirebaseAuth.getInstance() }
     val db = remember { FirebaseFirestore.getInstance() }
     val context = LocalContext.current
+    val versionName = remember { appVersionName(context) }
     val prefs = remember {
         context.getSharedPreferences("avcan_login_preferences", Context.MODE_PRIVATE)
     }
@@ -100,7 +105,7 @@ fun AuthGate() {
         val fullName = document.getString("fullName").orEmpty()
 
         if (!document.exists() || document.getString("approvalStatus") != "approved" ||
-            role !in listOf("admin", "owner_admin", "staff")
+            role !in listOf("admin", "owner_admin", "branch_admin", "staff")
         ) {
             auth.signOut()
             loading = false
@@ -108,7 +113,7 @@ fun AuthGate() {
             return
         }
 
-        if (role == "staff") {
+        if (role == "staff" || role == "branch_admin") {
             if (branchCode.isBlank()) {
                 auth.signOut()
                 loading = false
@@ -175,6 +180,8 @@ fun AuthGate() {
     ) {
         Text("AVCAN GIDA", fontSize = 30.sp, fontWeight = FontWeight.Bold, color = Navy)
         Text("Fiyat ve Etiket Takip Sistemi")
+        Text("Yapımcı: İbrahim Kayan", fontSize = 12.sp, color = Color.Gray)
+        Text("Sürüm $versionName", fontSize = 12.sp, color = Color.Gray)
         Spacer(Modifier.height(28.dp))
 
         OutlinedTextField(
@@ -245,7 +252,7 @@ fun AuthGate() {
                             .addOnSuccessListener { document ->
                                 if (document.exists() &&
                                     document.getString("approvalStatus") == "approved" &&
-                                    document.getString("role") in listOf("admin", "owner_admin", "staff")
+                                    document.getString("role") in listOf("admin", "owner_admin", "branch_admin", "staff")
                                 ) {
                                     if (rememberMe) {
                                         prefs.edit()
@@ -299,7 +306,8 @@ fun AvcanApp(user: AppUser, onSignOut: () -> Unit) {
     var showExitDialog by remember { mutableStateOf(false) }
     var lastHomeBackAt by remember { mutableLongStateOf(0L) }
     val context = LocalContext.current
-    val canManage = user.role == "admin" || user.role == "owner_admin"
+    val versionName = remember { appVersionName(context) }
+    val canManage = user.role in listOf("admin", "owner_admin", "branch_admin")
 
     // Yönetim sayfası personel hesabında açılamaz.
     LaunchedEffect(canManage) {
@@ -409,7 +417,7 @@ fun AvcanApp(user: AppUser, onSignOut: () -> Unit) {
                     "Fiyat ve Etiket Takip · ${user.fullName.ifBlank { user.email }}${if (user.branchName.isNotBlank()) " · ${user.branchName}" else ""}",
                     fontSize = 11.sp,
                     color = Color.Gray
-                ) } },
+                ); Text("Yapımcı: İbrahim Kayan · Sürüm $versionName", fontSize = 10.sp, color = Color.Gray) } },
                 actions = { IconButton(onClick = onSignOut) { Icon(Icons.Default.Logout, contentDescription = "Çıkış") } },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White)
             )
