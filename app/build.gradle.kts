@@ -1,4 +1,4 @@
-plugins {
+﻿plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
@@ -19,10 +19,10 @@ android {
 
     signingConfigs {
         create("release") {
-            storeFile = file(System.getProperty("user.home") + "/.android/debug.keystore")
-            storePassword = "android"
-            keyAlias = "androiddebugkey"
-            keyPassword = "android"
+            storeFile = file(System.getProperty("user.home") + "/avcan-gida-release.jks")
+            storePassword = System.getenv("AVCAN_STORE_PASSWORD") ?: ""
+            keyAlias = "avcan-gida"
+            keyPassword = System.getenv("AVCAN_KEY_PASSWORD") ?: ""
         }
     }
 
@@ -69,3 +69,4 @@ dependencies {
     implementation("com.google.firebase:firebase-messaging")
     implementation("com.google.firebase:firebase-functions")
 }
+
